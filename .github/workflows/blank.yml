@@ -5,23 +5,13 @@ on:
 
 env:
   RDP_USER: runneradmin
-  RDP_PASSWORD: "Tr0ca-Esta-S3nha!"   # <- altere aqui
-  TS_AUTHKEY: "tskey-auth-kq8ZG8BjMM11CNTRL-y5y66pXurGQs6r6MKq3gHQNYYZXjGdqo6"
+  RDP_PASSWORD: "TroqueEstaSenha#2026!Forte"   # <- use uma senha forte
 
 jobs:
   build:
     runs-on: windows-latest
     timeout-minutes: 360
     steps:
-      - name: Instalar e conectar Tailscale
-        shell: powershell
-        run: |
-          choco install tailscale -y --no-progress
-          $ts = "C:\Program Files\Tailscale\tailscale.exe"
-          Start-Sleep -Seconds 5
-          & $ts up --authkey=$env:TS_AUTHKEY --hostname=gh-rdp-vm --unattended --accept-routes
-          & $ts status
-
       - name: Configurar RDP
         shell: powershell
         run: |
@@ -30,19 +20,42 @@ jobs:
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 1
 
-      - name: Mostrar acesso e manter a VM ativa
+      - name: Instalar bore
+        shell: powershell
+        run: cargo install bore-cli --quiet
+
+      - name: Abrir tunel e manter a VM ativa
         shell: powershell
         run: |
-          $tsIp = (& "C:\Program Files\Tailscale\tailscale.exe" ip -4).Trim()
-          Write-Host "--- ACESSO RDP ---"
-          Write-Host "Usuario: $env:RDP_USER"
-          Write-Host "Senha: $env:RDP_PASSWORD"
-          Write-Host "IP Tailscale: $tsIp"
-          Write-Host "Nome: gh-rdp-vm"
-          Write-Host "------------------"
-
+          $bore = "$env:USERPROFILE\.cargo\bin\bore.exe"
           $end = (Get-Date).AddSeconds(21000)
+
+          function Start-Tunnel {
+            Remove-Item bore.out, bore.err -ErrorAction SilentlyContinue
+            $p = Start-Process $bore -ArgumentList "local 3389 --to bore.pub" `
+                 -RedirectStandardOutput bore.out -RedirectStandardError bore.err `
+                 -PassThru -NoNewWindow
+            for ($i = 0; $i -lt 30; $i++) {
+              Start-Sleep -Seconds 2
+              $txt = (Get-Content bore.out, bore.err -ErrorAction SilentlyContinue) -join " "
+              if ($txt -match "bore\.pub:(\d+)") {
+                Write-Host "--- ACESSO RDP ---"
+                Write-Host "Endereco: bore.pub:$($Matches[1])"
+                Write-Host "Usuario: $env:RDP_USER"
+                Write-Host "Senha: $env:RDP_PASSWORD"
+                Write-Host "------------------"
+                break
+              }
+            }
+            return $p
+          }
+
+          $proc = Start-Tunnel
           while ((Get-Date) -lt $end) {
+            Start-Sleep -Seconds 60
+            if ($proc.HasExited) {
+              Write-Host "Tunel caiu, reabrindo (o endereco pode mudar)..."
+              $proc = Start-Tunnel
+            }
             Write-Host "Heartbeat: VM ativa... $(Get-Date)"
-            Start-Sleep -Seconds 300
           }
