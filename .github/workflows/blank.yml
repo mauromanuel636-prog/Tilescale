@@ -1,0 +1,50 @@
+name: Windows_RDP_VM
+
+on: 
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Setup RDP and Tailscale
+        shell: powershell
+        run: |
+          # Instalação do 7-Zip para descompactação de arquivos
+          Invoke-WebRequest -Uri "https://www.7-zip.org/a/7z2301-x64.exe" -OutFile "7z.exe"
+          Start-Process -FilePath ".\7z.exe" -ArgumentList "/S" -Wait
+
+          # Configuração de Usuário e Senha para o RDP
+          $username = "runneradmin"
+          $password = "P@ssw0rd!"
+          net user $username $password /add
+          net localgroup administrators $username /add
+
+          # Habilita o Remote Desktop (RDP) no Registro do Windows
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
+          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+
+          # Instalação e Autenticação do Tailscale (VPN para acesso externo)
+          # Substitua 'SEU_AUTH_KEY_AQUI' pela sua chave de autenticação do Tailscale
+          $authKey = "SEU_AUTH_KEY_AQUI"
+          Invoke-WebRequest -Uri "https://pkgs.tailscale.com/stable/tailscale_amd64.msi" -OutFile "tailscale.msi"
+          Start-Process msiexec.exe -ArgumentList "/i tailscale.msi /quiet" -Wait
+          
+          # Inicia o Tailscale e autentica a máquina na sua rede
+          & "C:\Program Files\Tailscale\tailscale.exe" up --authkey=$authKey
+
+          # Exibe as credenciais no log para acesso
+          Write-Host "--- ACESSO RDP ---"
+          Write-Host "Usuário: $username"
+          Write-Host "Senha: $password"
+          Write-Host "IP: Verifique no painel do Tailscale"
+          Write-Host "------------------"
+
+          # Loop infinito para evitar que o GitHub encerre o Job por inatividade
+          # O GitHub Actions tem um limite de 6 horas por job
+          $timeout = 21600 
+          $start = Get-Date
+          while ((Get-Date) -lt $start.AddSeconds($timeout)) {
+            Write-Host "Heartbeat: VM ativa e aguardando conexão... $(Get-Date)"
+            Start-Sleep -Seconds 300
+          }
