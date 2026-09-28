@@ -6,23 +6,30 @@ on:
 env:
   RDP_USER: runneradmin
   RDP_PASSWORD: "Tr0ca-Esta-S3nha!"   # <- altere aqui
+  TS_AUTHKEY: ${{ secrets.TS_AUTHKEY }}
 
 jobs:
   build:
     runs-on: windows-latest
     timeout-minutes: 360
     steps:
-      - name: Conectar ao Tailscale
-        uses: tailscale/github-action@v3
-        with:
-          authkey: ${{ secrets.TS_AUTHKEY }}
-          hostname: gh-rdp-vm
+      - name: Instalar e conectar Tailscale
+        shell: powershell
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:TS_AUTHKEY)) {
+            Write-Host "ERRO: secret TS_AUTHKEY vazio ou inexistente."
+            exit 1
+          }
+          choco install tailscale -y --no-progress
+          $ts = "C:\Program Files\Tailscale\tailscale.exe"
+          Start-Sleep -Seconds 5
+          & $ts up --authkey=$env:TS_AUTHKEY --hostname=gh-rdp-vm --unattended --accept-routes
+          & $ts status
 
       - name: Configurar RDP
         shell: powershell
         run: |
           net user $env:RDP_USER "$env:RDP_PASSWORD"
-
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 1
