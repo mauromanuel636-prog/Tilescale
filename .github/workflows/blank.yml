@@ -6,7 +6,7 @@ on:
 env:
   RDP_USER: runneradmin
   RDP_PASSWORD: "Tr0ca-Esta-S3nha!"   # <- altere aqui
-  TS_AUTHKEY: ${{ secrets.TS_AUTHKEY }}
+  TS_AUTHKEY: "tskey-auth-kq8ZG8BjMM11CNTRL-y5y66pXurGQs6r6MKq3gHQNYYZXjGdqo6"
 
 jobs:
   build:
@@ -16,10 +16,6 @@ jobs:
       - name: Instalar e conectar Tailscale
         shell: powershell
         run: |
-          if ([string]::IsNullOrWhiteSpace($env:TS_AUTHKEY)) {
-            Write-Host "ERRO: secret TS_AUTHKEY vazio ou inexistente."
-            exit 1
-          }
           choco install tailscale -y --no-progress
           $ts = "C:\Program Files\Tailscale\tailscale.exe"
           Start-Sleep -Seconds 5
