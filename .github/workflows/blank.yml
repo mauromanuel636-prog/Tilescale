@@ -28,7 +28,9 @@ jobs:
           # Substitua 'SEU_AUTH_KEY_AQUI' pela sua chave de autenticação do Tailscale
           $authKey = "SEU_AUTH_KEY_AQUI"
           Invoke-WebRequest -Uri "https://pkgs.tailscale.com/stable/tailscale_amd64.msi" -OutFile "tailscale.msi"
-          Start-Process msiexec.exe -ArgumentList "/i tailscale.msi /quiet" -Wait
+          
+          # Modificação aplicada: /qn para instalação totalmente silenciosa, evitando o exit code 1 por travamento de UI
+          Start-Process msiexec.exe -ArgumentList "/i tailscale.msi /qn /norestart" -Wait
           
           # Inicia o Tailscale e autentica a máquina na sua rede
           & "C:\Program Files\Tailscale\tailscale.exe" up --authkey=$authKey
@@ -41,7 +43,6 @@ jobs:
           Write-Host "------------------"
 
           # Loop infinito para evitar que o GitHub encerre o Job por inatividade
-          # O GitHub Actions tem um limite de 6 horas por job
           $timeout = 21600 
           $start = Get-Date
           while ((Get-Date) -lt $start.AddSeconds($timeout)) {
